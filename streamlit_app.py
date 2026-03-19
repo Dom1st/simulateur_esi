@@ -12,7 +12,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 
-APP_TITLE = "Simulation Vente"
+APP_TITLE = "ESI - Simulateur de Vente"
 CONFIG_DIR = "configs"
 DEFAULT_DEMO_FILE = os.path.join(CONFIG_DIR, "demo.txt")
 
@@ -23,11 +23,11 @@ def ensure_config_dir() -> None:
 
 def default_demo_config() -> dict:
     return {
-        "client_title": "00000-2025",
-        "prix_net_vendeur_initial": 650000.0,
-        "honoraires_agence_taux": 0.0385,
+        "client_title": "00000-2026",
+        "prix_net_vendeur_initial": 250000.0,
+        "honoraires_agence_taux": 0.05,
         "frais_notaire_taux": 0.08,
-        "taux_reduction_notaire": 0.05,
+        "taux_reduction_notaire": 0.0,
     }
 
 
@@ -47,29 +47,24 @@ def ensure_demo_file() -> None:
         save_config_file(DEFAULT_DEMO_FILE, default_demo_config())
 
 
-def list_config_files() -> list[str]:
-    ensure_config_dir()
-    return sorted(
-        [name for name in os.listdir(CONFIG_DIR) if name.lower().endswith(".txt")],
-        key=str.lower,
-    )
-
-
 def infer_display_mode() -> str:
     user_agent = ""
     try:
         user_agent = st.context.headers.get("user-agent", "").lower()
-        print(user_agent)
-        print(st.context.headers)
     except Exception:
         pass
 
-    # cas tablette Android → considérer comme PC
+    if any(x in user_agent for x in ["windows", "x11", "macintosh", "linux x86_64"]):
+        return "PC"
+
     if "android" in user_agent and "mobile" not in user_agent:
         return "PC"
 
-    if any(m in user_agent for m in ["iphone", "mobile"]):
+    if any(x in user_agent for x in ["iphone", "mobile"]):
         return "Mobile"
+
+    if "ipad" in user_agent:
+        return "PC"
 
     return "PC"
 
@@ -80,6 +75,16 @@ def load_config_into_session(cfg: dict) -> None:
     st.session_state.honoraires_agence_taux_pct = float(cfg["honoraires_agence_taux"]) * 100.0
     st.session_state.frais_notaire_taux_pct = float(cfg["frais_notaire_taux"]) * 100.0
     st.session_state.taux_reduction_notaire_pct = float(cfg["taux_reduction_notaire"]) * 100.0
+
+
+def current_config_from_session() -> dict:
+    return {
+        "client_title": st.session_state.client_title,
+        "prix_net_vendeur_initial": st.session_state.prix_net_vendeur_initial,
+        "honoraires_agence_taux": st.session_state.honoraires_agence_taux_pct / 100.0,
+        "frais_notaire_taux": st.session_state.frais_notaire_taux_pct / 100.0,
+        "taux_reduction_notaire": st.session_state.taux_reduction_notaire_pct / 100.0,
+    }
 
 
 def build_dataframe(
@@ -257,7 +262,12 @@ def plot_chart(
 
     ax.set_xlabel("Variation du prix (%)", fontsize=params["axis_size"])
     ax.set_ylabel("Montant (K€)", fontsize=params["axis_size"])
-    ax.set_title(chart_title, fontsize=params["title_size"], fontweight="bold")
+    from datetime import datetime
+
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    ax.set_title(
+        f"Simulation vente - édition du {now}", 
+        fontsize=params["title_size"], fontweight="bold")
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=params["legend_size"])
 
@@ -265,7 +275,7 @@ def plot_chart(
     return fig
 
 
-def build_pdf_bytes(fig, chart_title: str, df: pd.DataFrame) -> bytes:
+def build_pdf_bytes(fig, chart_title: str, df: pd.DataFrame, client_title: str) -> bytes:
     image_buffer = io.BytesIO()
     fig.savefig(image_buffer, format="png", dpi=220, bbox_inches="tight")
     image_buffer.seek(0)
@@ -277,8 +287,11 @@ def build_pdf_bytes(fig, chart_title: str, df: pd.DataFrame) -> bytes:
     c.setFont("Helvetica-Bold", 18)
     c.drawString(30, height - 30, chart_title)
 
+    c.setFont("Helvetica", 12)
+    c.drawString(30, height - 48, f"Client {client_title}")
+
     c.setFont("Helvetica", 10)
-    c.drawString(30, height - 48, f"Généré le {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    c.drawString(30, height - 64, f"Généré le {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
     img = ImageReader(image_buffer)
     c.drawImage(
@@ -286,7 +299,7 @@ def build_pdf_bytes(fig, chart_title: str, df: pd.DataFrame) -> bytes:
         20,
         80,
         width=width - 40,
-        height=height - 140,
+        height=height - 150,
         preserveAspectRatio=True,
         mask="auto",
     )
@@ -305,62 +318,68 @@ def build_pdf_bytes(fig, chart_title: str, df: pd.DataFrame) -> bytes:
     return pdf_buffer.getvalue()
 
 
+def apply_uploaded_config() -> None:
+    key = f"config_uploader_{st.session_state.uploader_nonce}"
+    uploaded_file = st.session_state.get(key)
+
+    if uploaded_file is None:
+        return
+
+    try:
+        imported_cfg = json.loads(uploaded_file.getvalue().decode("utf-8"))
+        load_config_into_session(imported_cfg)
+        st.session_state.upload_error = ""
+        st.session_state.uploader_nonce += 1
+    except Exception as exc:
+        st.session_state.upload_error = f"Fichier invalide : {exc}"
+
+
 def init_session_state() -> None:
     ensure_demo_file()
 
     if "initialized" not in st.session_state:
         demo = load_config_file(DEFAULT_DEMO_FILE)
         load_config_into_session(demo)
-        st.session_state.loaded_config_name = "demo.txt"
+        st.session_state.uploader_nonce = 0
+        st.session_state.upload_error = ""
         st.session_state.initialized = True
 
 
 def sidebar_load_save_controls() -> None:
-    st.sidebar.subheader("Sauvegarde / chargement")
+    st.sidebar.subheader("Paramètres Client")
 
-    config = {
-        "client_title": st.session_state.client_title,
-        "prix_net_vendeur_initial": st.session_state.prix_net_vendeur_initial,
-        "honoraires_agence_taux": st.session_state.honoraires_agence_taux_pct / 100.0,
-        "frais_notaire_taux": st.session_state.frais_notaire_taux_pct / 100.0,
-        "taux_reduction_notaire": st.session_state.taux_reduction_notaire_pct / 100.0,
-    }
+    config = current_config_from_session()
+    safe_client_name = (
+        config["client_title"]
+        .strip()
+        .replace(" ", "_")
+        .replace("/", "_")
+        .replace("\\", "_")
+    )
+    if not safe_client_name:
+        safe_client_name = "client"
 
-    save_name = st.sidebar.text_input("Nom du fichier texte", value="simulation.txt")
+    config_bytes = json.dumps(config, ensure_ascii=False, indent=2).encode("utf-8")
 
-    if st.sidebar.button("Sauver localement", width="stretch"):
-        ensure_config_dir()
-        if not save_name.lower().endswith(".txt"):
-            save_name = f"{save_name}.txt"
-        filepath = os.path.join(CONFIG_DIR, save_name)
-        save_config_file(filepath, config)
-        st.sidebar.success(f"Fichier sauvé : {save_name}")
-        st.rerun()
+    st.sidebar.download_button(
+        label="Télécharger une copie",
+        data=config_bytes,
+        file_name=f"config_{safe_client_name}.txt",
+        mime="text/plain",
+        width="stretch",
+    )
 
-    config_files = list_config_files()
-    if config_files:
-        current_loaded = st.session_state.get("loaded_config_name", "demo.txt")
-        default_index = config_files.index(current_loaded) if current_loaded in config_files else 0
+    uploader_key = f"config_uploader_{st.session_state.uploader_nonce}"
+    st.sidebar.file_uploader(
+        "Charger des paramètres...",
+        type=["txt"],
+        accept_multiple_files=False,
+        key=uploader_key,
+        on_change=apply_uploaded_config,
+    )
 
-        selected_config = st.sidebar.selectbox(
-            "Configs enregistrées",
-            options=config_files,
-            index=default_index,
-        )
-
-        if selected_config != current_loaded:
-            cfg = load_config_file(os.path.join(CONFIG_DIR, selected_config))
-            load_config_into_session(cfg)
-            st.session_state.loaded_config_name = selected_config
-            st.rerun()
-
-    uploaded_cfg = st.sidebar.file_uploader("Importer un fichier texte", type=["txt"])
-    if uploaded_cfg is not None:
-        imported_cfg = json.loads(uploaded_cfg.getvalue().decode("utf-8"))
-        if st.sidebar.button("Charger le fichier importé", width="stretch"):
-            load_config_into_session(imported_cfg)
-            st.session_state.loaded_config_name = uploaded_cfg.name
-            st.rerun()
+    if st.session_state.get("upload_error"):
+        st.sidebar.error(st.session_state.upload_error)
 
 
 def sidebar_parameter_controls() -> None:
@@ -369,7 +388,7 @@ def sidebar_parameter_controls() -> None:
     st.sidebar.text_input(
         "Titre client",
         key="client_title",
-        help="Nom du client affiché dans le sous-titre et utilisé dans les sauvegardes.",
+        help="Nom du client affiché dans le sous-titre.",
     )
 
     st.sidebar.number_input(
@@ -451,7 +470,12 @@ def main() -> None:
 
     st.pyplot(fig, width="stretch")
 
-    pdf_bytes = build_pdf_bytes(fig, APP_TITLE, df)
+    pdf_bytes = build_pdf_bytes(
+        fig=fig,
+        chart_title=APP_TITLE,
+        df=df,
+        client_title=st.session_state.client_title,
+    )
     st.download_button(
         label="📄 Imprimer / télécharger le PDF",
         data=pdf_bytes,
