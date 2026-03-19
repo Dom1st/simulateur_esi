@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+
+# Environnements
+.venv/
+env/
+*.conda
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/
+
+# VSCode
+.vscode/
+
+# logs / divers
+*.log
