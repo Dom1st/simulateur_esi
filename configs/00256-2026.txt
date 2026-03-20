@@ -1,7 +1,0 @@
-{
-  "client_title": "00256-2026",
-  "prix_net_vendeur_initial": 650000.0,
-  "honoraires_agence_taux": 0.04,
-  "frais_notaire_taux": 0.08,
-  "taux_reduction_notaire": 0.05
-}

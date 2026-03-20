@@ -1,0 +1,14 @@
+[app]
+title = "ESI - Simulateur de Vente"
+
+[config]
+name = "configs/demo.txt"
+
+[honoraires]
+seuil_1_max = 70000
+seuil_1_forfait = 5000
+seuil_2_max = 150000
+seuil_2_taux = 0.07
+seuil_3_max = 400000
+seuil_3_taux = 0.06
+seuil_4_taux = 0.05

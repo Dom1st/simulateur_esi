@@ -1,7 +1,0 @@
-{
-  "client_title": "00000-2026",
-  "prix_net_vendeur_initial": 250000.0,
-  "honoraires_agence_taux": 0.05,
-  "frais_notaire_taux": 0.08,
-  "taux_reduction_notaire": 0.05
-}

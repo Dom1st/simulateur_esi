@@ -11,11 +11,11 @@ env/
 .DS_Store
 Thumbs.db
 
-# Streamlit
-.streamlit/
-
 # VSCode
 .vscode/
 
 # logs / divers
 *.log
+
+# mng files
+.mng/
