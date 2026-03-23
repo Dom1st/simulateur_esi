@@ -25,8 +25,18 @@ def get_default_config_file() -> str:
     return f"{get_config_dir()}/demo.txt"
 
 
+def get_default_app_agence() -> str:
+    return ""
+
+
 def get_default_app_title() -> str:
-    return "ESI - Simulateur de Vente"
+    return "Estimation de vente immobilière"
+
+
+def build_display_title(agence: str, title: str) -> str:
+    agence = str(agence).strip()
+    title = str(title).strip() or get_default_app_title()
+    return f"{agence} - {title}" if agence else title
 
 
 def ensure_config_dir() -> None:
@@ -72,6 +82,24 @@ def default_honoraires_bareme() -> dict:
     }
 
 
+def default_notaire_params() -> dict:
+    return {
+        "emol_seuil_1_max": 6500.0,
+        "emol_taux_1": 0.03870,
+        "emol_seuil_2_max": 17000.0,
+        "emol_taux_2": 0.01596,
+        "emol_seuil_3_max": 60000.0,
+        "emol_taux_3": 0.01064,
+        "emol_taux_4": 0.00799,
+        "formalites_fixes": 850.0,
+        "debours_fixes": 400.0,
+        "droits_taux": 0.063185,
+        "securite_taux": 0.001,
+        "tva_taux": 0.20,
+        "mobilier_plafond_taux": 0.05,
+    }
+
+
 def default_config() -> dict:
     return {
         "mandat": "1234 N 5678",
@@ -82,8 +110,7 @@ def default_config() -> dict:
         "honoraires_agence_taux_fixe": 0.0,
         "honoraires_agence_forfait": 0.0,
         "honoraires_agence_forfait_taux": 0.0,
-        "frais_notaire_taux": 0.08,
-        "taux_reduction_notaire": 0.0,
+        "mobilier_montant": 0.0,
     }
 
 
@@ -117,6 +144,7 @@ def write_default_profile(profile_file: str) -> None:
 
     with open(profile_file, "w", encoding="utf-8") as f:
         f.write("[app]\n")
+        f.write(f'agence = "{get_default_app_agence()}"\n')
         f.write(f'title = "{app_title}"\n\n')
 
         f.write("[config]\n")
@@ -129,7 +157,23 @@ def write_default_profile(profile_file: str) -> None:
         f.write(f"seuil_2_taux = {bareme['seuil_2_taux']}\n")
         f.write(f"seuil_3_max = {bareme['seuil_3_max']}\n")
         f.write(f"seuil_3_taux = {bareme['seuil_3_taux']}\n")
-        f.write(f"seuil_4_taux = {bareme['seuil_4_taux']}\n")
+        f.write(f"seuil_4_taux = {bareme['seuil_4_taux']}\n\n")
+
+        notaire = default_notaire_params()
+        f.write("[notaire]\n")
+        f.write(f"emol_seuil_1_max = {notaire['emol_seuil_1_max']}\n")
+        f.write(f"emol_taux_1 = {notaire['emol_taux_1']}\n")
+        f.write(f"emol_seuil_2_max = {notaire['emol_seuil_2_max']}\n")
+        f.write(f"emol_taux_2 = {notaire['emol_taux_2']}\n")
+        f.write(f"emol_seuil_3_max = {notaire['emol_seuil_3_max']}\n")
+        f.write(f"emol_taux_3 = {notaire['emol_taux_3']}\n")
+        f.write(f"emol_taux_4 = {notaire['emol_taux_4']}\n")
+        f.write(f"formalites_fixes = {notaire['formalites_fixes']}\n")
+        f.write(f"debours_fixes = {notaire['debours_fixes']}\n")
+        f.write(f"droits_taux = {notaire['droits_taux']}\n")
+        f.write(f"securite_taux = {notaire['securite_taux']}\n")
+        f.write(f"tva_taux = {notaire['tva_taux']}\n")
+        f.write(f"mobilier_plafond_taux = {notaire['mobilier_plafond_taux']}\n")
 
 
 def load_profile() -> dict:
@@ -144,14 +188,24 @@ def load_profile() -> dict:
     app_data = data.get("app", {})
     config_data = data.get("config", {})
     honoraires_data = data.get("honoraires", {})
+    notaire_data = data.get("notaire", {})
 
     merged_honoraires = default_honoraires_bareme()
     merged_honoraires.update(honoraires_data)
 
+    merged_notaire = default_notaire_params()
+    merged_notaire.update(notaire_data)
+
+    agence = app_data.get("agence", get_default_app_agence())
+    title = app_data.get("title", get_default_app_title())
+
     return {
-        "title": app_data.get("title", get_default_app_title()),
+        "agence": agence,
+        "title": title,
+        "display_title": build_display_title(agence, title),
         "config_name": config_data.get("name", get_default_config_file()),
         "honoraires": merged_honoraires,
+        "notaire": merged_notaire,
     }
 
 def ensure_session_defaults() -> None:
@@ -167,8 +221,7 @@ def ensure_session_defaults() -> None:
     st.session_state.setdefault("honoraires_agence_forfait_eur", float(cfg["honoraires_agence_forfait"]))
     st.session_state.setdefault("honoraires_agence_forfait_taux_pct", float(cfg["honoraires_agence_forfait_taux"]) * 100.0)
 
-    st.session_state.setdefault("frais_notaire_taux_pct", float(cfg["frais_notaire_taux"]) * 100.0)
-    st.session_state.setdefault("taux_reduction_notaire_pct", float(cfg["taux_reduction_notaire"]) * 100.0)
+    st.session_state.setdefault("mobilier_montant_eur", float(cfg["mobilier_montant"]))
 
     st.session_state.setdefault("save_message", "")
     st.session_state.setdefault("upload_error", "")
@@ -250,6 +303,60 @@ def compute_honoraires(
     return montant, taux
 
 
+def clamp_mobilier(prix_fai: float, mobilier: float, notaire_params: dict) -> float:
+    plafond = float(notaire_params.get("mobilier_plafond_taux", 0.05)) * max(prix_fai, 0.0)
+    return max(0.0, min(float(mobilier), plafond))
+
+
+def calc_frais_notaire(prix_fai: float, mobilier: float, notaire_params: dict) -> dict:
+    mobilier_retenu = clamp_mobilier(prix_fai, mobilier, notaire_params)
+    base = max(0.0, prix_fai - mobilier_retenu)
+
+    s1 = float(notaire_params.get("emol_seuil_1_max", 6500.0))
+    t1 = float(notaire_params.get("emol_taux_1", 0.03870))
+    s2 = float(notaire_params.get("emol_seuil_2_max", 17000.0))
+    t2 = float(notaire_params.get("emol_taux_2", 0.01596))
+    s3 = float(notaire_params.get("emol_seuil_3_max", 60000.0))
+    t3 = float(notaire_params.get("emol_taux_3", 0.01064))
+    t4 = float(notaire_params.get("emol_taux_4", 0.00799))
+
+    emol = 0.0
+    emol += min(base, s1) * t1
+    emol += max(0.0, min(base, s2) - s1) * t2
+    emol += max(0.0, min(base, s3) - s2) * t3
+    emol += max(0.0, base - s3) * t4
+    emol = round(emol)
+
+    formalites = round(float(notaire_params.get("formalites_fixes", 850.0)))
+    debours = round(float(notaire_params.get("debours_fixes", 400.0)))
+    droits = round(base * float(notaire_params.get("droits_taux", 0.063185)))
+    securite = round(base * float(notaire_params.get("securite_taux", 0.001)))
+
+    total_1 = emol + formalites
+    tva = round(total_1 * float(notaire_params.get("tva_taux", 0.20)))
+    total_2 = droits + securite + tva
+    # frais = round(total_1 + total_2 + debours)
+    frais = round((total_1 + total_2 + debours) / 100.0) * 100
+    pct_prix = round(100.0 * frais / prix_fai, 1) if prix_fai > 0 else 0.0
+
+    return {
+        "prix_fai": round(prix_fai),
+        "mobilier_declare": round(mobilier),
+        "mobilier_retenu": round(mobilier_retenu),
+        "base_calcul": round(base),
+        "emoluments": emol,
+        "formalites": formalites,
+        "total_1": total_1,
+        "droits": droits,
+        "securite": securite,
+        "tva": tva,
+        "total_2": total_2,
+        "debours": debours,
+        "frais": frais,
+        "pct_prix": pct_prix,
+    }
+
+
 def load_config_into_session(cfg: dict) -> None:
     default_cfg = default_config()
 
@@ -291,13 +398,9 @@ def load_config_into_session(cfg: dict) -> None:
     )
     st.session_state.honoraires_agence_forfait_taux_pct = forfait_taux_cfg * 100.0
 
-    st.session_state.frais_notaire_taux_pct = float(
-        cfg.get("frais_notaire_taux", default_cfg["frais_notaire_taux"])
-    ) * 100.0
-
-    st.session_state.taux_reduction_notaire_pct = float(
-        cfg.get("taux_reduction_notaire", default_cfg["taux_reduction_notaire"])
-    ) * 100.0
+    st.session_state.mobilier_montant_eur = float(
+        cfg.get("mobilier_montant", default_cfg["mobilier_montant"])
+    )
 
 
 def current_config_from_session() -> dict:
@@ -312,8 +415,7 @@ def current_config_from_session() -> dict:
         "honoraires_agence_taux_fixe": float(st.session_state.honoraires_agence_taux_fixe_pct) / 100.0,
         "honoraires_agence_forfait": float(st.session_state.honoraires_agence_forfait_eur),
         "honoraires_agence_forfait_taux": float(st.session_state.honoraires_agence_forfait_taux_pct) / 100.0,
-        "frais_notaire_taux": float(st.session_state.frais_notaire_taux_pct) / 100.0,
-        "taux_reduction_notaire": float(st.session_state.taux_reduction_notaire_pct) / 100.0,
+        "mobilier_montant": float(st.session_state.mobilier_montant_eur),
     }
 
 
@@ -425,9 +527,9 @@ def build_dataframe(
     honoraires_taux: float,
     honoraires_forfait: float,
     honoraires_forfait_taux_mem: float,
-    notaire_taux: float,
-    reduction_notaire_taux: float,
+    mobilier_montant: float,
     honoraires_bareme: dict,
+    notaire_params: dict,
 ) -> pd.DataFrame:
     rows = []
 
@@ -445,11 +547,10 @@ def build_dataframe(
         )
 
         prix_fai = prix_nv + honoraires
-        frais_notaire_base = prix_fai * notaire_taux
-        cout_total = prix_fai + frais_notaire_base
-
-        frais_notaire_reduits = prix_fai * (1 - reduction_notaire_taux) * notaire_taux
-        cout_total_reduit = prix_fai + frais_notaire_reduits
+        notaire_normal = calc_frais_notaire(prix_fai, 0.0, notaire_params)
+        notaire_reduit = calc_frais_notaire(prix_fai, mobilier_montant, notaire_params)
+        prix_total = prix_fai + notaire_normal["frais"]
+        prix_total_reduit = prix_fai + notaire_reduit["frais"]
 
         rows.append(
             {
@@ -458,8 +559,11 @@ def build_dataframe(
                 "Honoraires": honoraires,
                 "Taux honoraires": taux_calcule,
                 "Prix FAI": prix_fai,
-                "Coût acquéreur total": cout_total,
-                "Coût avec frais de notaire réduits": cout_total_reduit,
+                "Frais de notaire": notaire_normal["frais"],
+                "Frais de notaire réduits": notaire_reduit["frais"],
+                "Mobilier retenu": notaire_reduit["mobilier_retenu"],
+                "Prix total acquéreur": prix_total,
+                "Prix total acquéreur avec frais de notaire réduit": prix_total_reduit,
             }
         )
 
@@ -519,21 +623,21 @@ def plot_chart(
     )
     line_total, = ax.plot(
         df["Variation"],
-        df["Coût acquéreur total"],
+        df["Prix total acquéreur"],
         marker="o",
         linewidth=params["line_width"],
         markersize=params["marker_size"],
-        label="Coût acquéreur total",
+        label="Prix total acquéreur",
     )
     ax.plot(
         df["Variation"],
-        df["Coût avec frais de notaire réduits"],
+        df["Prix total acquéreur avec frais de notaire réduit"],
         linestyle="--",
         marker="o",
         linewidth=params["line_width"],
         markersize=params["marker_size"],
         color="green",
-        label="Coût avec frais de notaire réduits",
+        label="Prix total acquéreur avec frais de notaire réduit",
     )
 
     ax.set_xlim(0, -5)
@@ -542,8 +646,8 @@ def plot_chart(
         [
             "Prix net vendeur",
             "Prix FAI",
-            "Coût acquéreur total",
-            "Coût avec frais de notaire réduits",
+            "Prix total acquéreur",
+            "Prix total acquéreur avec frais de notaire réduit",
         ]
     ]
     y_min_value = values.min().min()
@@ -562,7 +666,7 @@ def plot_chart(
     for line, col in [
         (line_nv, "Prix net vendeur"),
         (line_fai, "Prix FAI"),
-        (line_total, "Coût acquéreur total"),
+        (line_total, "Prix total acquéreur"),
     ]:
         color = line.get_color()
         for x, y in zip(df["Variation"], df[col]):
@@ -577,7 +681,7 @@ def plot_chart(
                 color=color,
             )
 
-    for x, y in zip(df["Variation"], df["Coût avec frais de notaire réduits"]):
+    for x, y in zip(df["Variation"], df["Prix total acquéreur avec frais de notaire réduit"]):
         ax.text(
             x,
             y,
@@ -592,11 +696,11 @@ def plot_chart(
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
     ax.set_xlabel("Variation du prix (%)", fontsize=params["axis_size"])
     ax.set_ylabel("Montant (K€)", fontsize=params["axis_size"])
-    ax.set_title(
-        f"{chart_title} - édition du {now}",
-        fontsize=params["title_size"],
-        fontweight="bold",
-    )
+    # ax.set_title(
+    #     f"{chart_title} - édition du {now}",
+    #     fontsize=params["title_size"],
+    #     fontweight="bold",
+    # )
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=params["legend_size"])
 
@@ -648,14 +752,23 @@ def build_pdf_bytes(
         "fixe": "taux fixe",
         "forfait": "forfait",
     }.get(mode_honoraires, mode_honoraires)
-
-    cfg_line = (
+    cfn_dd = st.session_state.get("current_frais_notaire_dialog_data", {})
+    footer_text  = (
         f"Mode honoraires : {mode_label}   |   "
         f"Taux : {taux_courant * 100:.1f} %   |   "
         f"Honoraires : {montant_courant:,.0f} €".replace(",", " ")
     )
+    # Ajout des frais de notaire
+    if cfn_dd:
+        frais_txt = (
+            f"{cfn_dd.get('frais', 0):,.0f} € "
+            f"({cfn_dd.get('pct_prix', 0):.1f} %)"
+        ).replace(",", " ")
+
+        footer_text += f"   |   Frais de notaire : {frais_txt}"
+
     c.setFont("Helvetica", 10)
-    c.drawString(30, 25, cfg_line)
+    c.drawString(30, 25, footer_text)
 
     c.showPage()
     c.save()
@@ -737,9 +850,12 @@ def init_session_state(profile: dict) -> None:
 
         load_config_into_session(cfg)
 
+        st.session_state.app_agence = profile["agence"]
         st.session_state.app_title = profile["title"]
+        st.session_state.app_display_title = profile["display_title"]
         st.session_state.init_file = init_file
         st.session_state.honoraires_bareme = profile["honoraires"]
+        st.session_state.notaire_params = profile["notaire"]
         st.session_state.upload_error = ""
         st.session_state.save_message = ""
         st.session_state.initialized = True
@@ -785,6 +901,11 @@ def get_current_honoraires_display_values() -> tuple[float, float]:
 def format_honoraires_caption(montant_courant: float, taux_courant: float) -> str:
     return f"Honoraires : {montant_courant:,.0f} €  ({taux_courant * 100:.1f} %)".replace(",", " ")
 
+def format_notaire_caption(frais_notaire: dict) -> str:
+    return (
+        f"Frais de notaire : {frais_notaire['frais']:,.0f} €  ({frais_notaire['pct_prix']:.1f} %)"
+        .replace(",", " ")
+    )
 
 def render_sidebar_messages(placeholder) -> None:
     if st.session_state.get("save_message"):
@@ -794,6 +915,115 @@ def render_sidebar_messages(placeholder) -> None:
     else:
         placeholder.empty()
 
+@st.dialog("Estimation des frais de notaire")
+def show_frais_notaire_dialog() -> None:
+    import streamlit.components.v1 as components
+
+    frais_notaire = st.session_state.get("current_frais_notaire_dialog_data", {})
+    pct_prix = f"({frais_notaire['pct_prix']:.1f} %)"
+
+    if not frais_notaire:
+        st.info("Aucune donnée disponible.")
+        return
+
+    item_labels = {
+        "prix_fai": "Prix FAI",
+        "mobilier_declare": "Valeur mobilier déclarée",
+        "mobilier_retenu": "Valeur mobilier retenue (5% FAI maxi)",
+        "base_calcul": "Base de calcul (1-3)",
+        "emoluments": "Emoluments du notaire",
+        "formalites": "Formalites",
+        "total_1": "Total notaire (3+4)",
+        "droits": "Droits d'enregistrement",
+        "securite": "Securite immobilière",
+        "tva": "TVA (20%) sur Total notaire",
+        "total_2": "Total taxes (6+7+8)",
+        "debours": "Débours (Frais annexes)",
+        "frais": f"Total (notaire+taxes+débours)   ~{pct_prix}",
+    }
+
+    display_order = [
+        "prix_fai",
+        "mobilier_declare",
+        "mobilier_retenu",
+        "base_calcul",
+        "emoluments",
+        "formalites",
+        "total_1",
+        "droits",
+        "securite",
+        "tva",
+        "total_2",
+        "debours",
+        "frais",
+    ]
+
+    # lignes à mettre en valeur (gras + espacement)
+    bold_rows_1_based = {4, 7, 11, 13}
+
+    def fmt_eur(value) -> str:
+        return f"{int(round(float(value))):,}".replace(",", " ") + " €"
+
+    table_rows = []
+    for idx, key in enumerate(display_order, start=1):
+        if key not in frais_notaire:
+            continue
+
+        label = item_labels[key]
+        value = fmt_eur(frais_notaire[key])
+
+        row_style = ""
+        if idx in bold_rows_1_based:
+            row_style = "font-weight:700; padding-top:5px; padding-bottom:30px;"
+
+        table_rows.append(
+            f"""
+            <tr>
+                <td style="padding:8px 10px; border-bottom:1px solid #333; color:#888; {row_style}">
+                    {idx}
+                </td>
+                <td style="padding:8px 12px; border-bottom:1px solid #333; {row_style}">
+                    {label}
+                </td>
+                <td style="padding:8px 12px; border-bottom:1px solid #333; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; {row_style}">
+                    {value}
+                </td>
+            </tr>
+            """
+        )
+
+    html = f"""
+    <html>
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                font-family: sans-serif;
+            }}
+            .wrapper {{
+                max-height: 520px;
+                overflow-y: auto;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 15px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="wrapper">
+            <table>
+                <tbody>
+                    {''.join(table_rows)}
+                </tbody>
+            </table>
+        </div>
+    </body>
+    </html>
+    """
+
+    components.html(html, height=560, scrolling=False)
 
 @st.dialog("Choisir une simulation")
 def open_config_dialog() -> None:
@@ -910,7 +1140,7 @@ def sidebar_parameter_controls() -> None:
         st.text_input(
             "Référence",
             key="client_id",
-            help="Référence du client affichée dans le sous-titre.",
+            help="Référence du client.",
         )
 
     st.sidebar.number_input(
@@ -965,7 +1195,7 @@ def sidebar_parameter_controls() -> None:
                 help=(
                     "Taux calculé automatiquement par le barème."
                     if st.session_state.mode_honoraires == "bareme"
-                    else "Taux mémorisé lors du réglage du forfait."
+                    else "Taux coreespondant au forfait."
                 ),
             )
 
@@ -977,7 +1207,7 @@ def sidebar_parameter_controls() -> None:
                 step=1000.0,
                 key="honoraires_agence_forfait_eur",
                 format="%.0f",
-                help="Forfait négocié en euros.",
+                help="Honoraires forfaitaires en euros.",
             )
             sync_honoraires_state()
             montant_affiche_eur, taux_affiche = get_current_honoraires_display_values()
@@ -992,37 +1222,59 @@ def sidebar_parameter_controls() -> None:
                 help="Montant recalculé automatiquement.",
             )
 
-    col_notaire, col_reduc = st.sidebar.columns(2)
-    with col_notaire:
-        st.number_input(
-            "Frais de notaire (%)",
-            min_value=0.0,
-            max_value=100.0,
-            step=0.1,
-            key="frais_notaire_taux_pct",
-            format="%.1f",
-        )
-
-    with col_reduc:
-        st.number_input(
-            "Mobilier (%)",
-            min_value=0.0,
-            max_value=100.0,
-            step=0.1,
-            key="taux_reduction_notaire_pct",
-            format="%.1f",
-        )
-
-    st.sidebar.caption(
-        format_honoraires_caption(montant_affiche_eur, taux_affiche)
+    prix_fai_courant = float(st.session_state.prix_net_vendeur_initial) + float(montant_affiche_eur)
+    mobilier_max = clamp_mobilier(
+        prix_fai_courant,
+        prix_fai_courant,
+        st.session_state.notaire_params,
     )
+
+    col_frais_notaire, col_mobilier  = st.sidebar.columns(2)
+    with col_mobilier:
+        st.number_input(
+            "Mobilier (€)",
+            min_value=0.0,
+            # max_value=float(mobilier_max),
+            step=1000.0,
+            key="mobilier_montant_eur",
+            format="%.0f",
+            help="Montant du mobilier retenu pour réduire l'assiette, plafonné à 5 % du prix FAI.",
+        )
+
+    frais_notaire_courant = calc_frais_notaire(
+        prix_fai_courant,
+        float(st.session_state.mobilier_montant_eur),
+        st.session_state.notaire_params,
+    )
+
+    with col_frais_notaire:
+        st.number_input(
+            "Frais de notaire (€)",
+            min_value=0.0,
+            value=float(frais_notaire_courant["frais"]),
+            step=1000.0,
+            format="%.0f",
+            disabled=True,
+            help="Montant calculé automatiquement.",
+        )
+
+    st.sidebar.caption(format_honoraires_caption(montant_affiche_eur, taux_affiche))
+    st.session_state.current_frais_notaire_dialog_data = frais_notaire_courant
+    if st.sidebar.button(
+        format_notaire_caption(frais_notaire_courant),
+        key="btn_show_frais_notaire_dialog",
+        type="tertiary",
+        help="Afficher le détail du calcul des frais de notaire.",
+        width="stretch",
+    ):
+        show_frais_notaire_dialog()
 
 
 def main() -> None:
     profile = load_profile()
 
     st.set_page_config(
-        page_title=profile["title"],
+        page_title=profile["display_title"],
         page_icon="🏠",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -1045,7 +1297,7 @@ def main() -> None:
     sidebar_messages_placeholder = st.sidebar.empty()
     render_sidebar_messages(sidebar_messages_placeholder)
 
-    st.title(st.session_state.app_title)
+    st.title(st.session_state.app_display_title)
 
     subtitle = f"Mandat : {st.session_state.mandat}"
     if st.session_state.client_id.strip():
@@ -1059,9 +1311,9 @@ def main() -> None:
     honoraires_taux = float(st.session_state.honoraires_agence_taux_pct) / 100.0
     honoraires_forfait = float(st.session_state.honoraires_agence_forfait_eur)
     honoraires_forfait_taux_mem = float(st.session_state.honoraires_agence_forfait_taux_pct) / 100.0
-    notaire_taux = float(st.session_state.frais_notaire_taux_pct) / 100.0
-    reduction_notaire_taux = float(st.session_state.taux_reduction_notaire_pct) / 100.0
+    mobilier_montant = float(st.session_state.mobilier_montant_eur)
     honoraires_bareme = st.session_state.honoraires_bareme
+    notaire_params = st.session_state.notaire_params
 
     df = build_dataframe(
         prix_nv_initial=prix_nv_initial,
@@ -1069,14 +1321,14 @@ def main() -> None:
         honoraires_taux=honoraires_taux,
         honoraires_forfait=honoraires_forfait,
         honoraires_forfait_taux_mem=honoraires_forfait_taux_mem,
-        notaire_taux=notaire_taux,
-        reduction_notaire_taux=reduction_notaire_taux,
+        mobilier_montant=mobilier_montant,
         honoraires_bareme=honoraires_bareme,
+        notaire_params=notaire_params,
     )
 
     fig = plot_chart(
         df=df,
-        chart_title=st.session_state.app_title,
+        chart_title=st.session_state.app_display_title,
         display_mode=display_mode,
     )
     st.pyplot(fig, width="stretch")
@@ -1085,7 +1337,7 @@ def main() -> None:
 
     pdf_bytes = build_pdf_bytes(
         fig=fig,
-        chart_title=st.session_state.app_title,
+        chart_title=st.session_state.app_display_title,
         df=df,
         mandat=st.session_state.mandat,
         client_id=st.session_state.client_id,
@@ -1108,8 +1360,8 @@ def main() -> None:
             "Prix net vendeur",
             "Honoraires",
             "Prix FAI",
-            "Coût acquéreur total",
-            "Coût avec frais de notaire réduits",
+            "Prix total acquéreur",
+            "Prix total acquéreur avec frais de notaire réduit",
         ]
         for col in money_cols:
             df_display[col] = df_display[col] / 1000.0
@@ -1128,8 +1380,11 @@ def main() -> None:
             "Honoraires (K€)",
             "Taux honoraires (%)",
             "Prix FAI (K€)",
-            "Coût acquéreur total (K€)",
-            "Coût avec frais de notaire réduits (K€)",
+            "Frais de notaire (K€)",
+            "Frais de notaire réduits (K€)",
+            "Mobilier retenu (K€)",
+            "Prix total acquéreur (K€)",
+            "Prix total acquéreur avec frais réduits (K€)",
         ]
         st.dataframe(df_display, width="stretch", hide_index=True)
 
