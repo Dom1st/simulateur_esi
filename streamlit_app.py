@@ -2,7 +2,7 @@ import io
 import json
 import os
 from datetime import datetime
-import tomllib
+import tomllib, toml
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,11 +18,22 @@ def get_config_dir() -> str:
 
 
 def get_profile_file() -> str:
-    return os.path.join(".streamlit", "profile.toml")
+    candidates = [
+        os.path.join(".streamlit", "profile.toml"),
+        "profile.toml",
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return candidates[0]
 
 
 def get_default_config_file() -> str:
     return f"{get_config_dir()}/demo.txt"
+
+
+def get_default_profile_file() -> str:
+    return "profile_default.toml"
 
 
 def get_default_app_agence() -> str:
@@ -136,7 +147,9 @@ def ensure_default_config_file() -> None:
 
 
 def write_default_profile(profile_file: str) -> None:
-    os.makedirs(os.path.dirname(profile_file), exist_ok=True)
+    folder = os.path.dirname(profile_file)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
 
     bareme = default_honoraires_bareme()
     default_config_name = get_default_config_file().replace("\\", "/")
@@ -176,20 +189,22 @@ def write_default_profile(profile_file: str) -> None:
         f.write(f"mobilier_plafond_taux = {notaire['mobilier_plafond_taux']}\n")
 
 
-def load_profile() -> dict:
-    profile_file = get_profile_file()
+def ensure_default_profile_file() -> None:
+    default_profile_file = get_default_profile_file()
+    if not os.path.exists(default_profile_file):
+        write_default_profile(default_profile_file)
 
-    if not os.path.exists(profile_file):
-        write_default_profile(profile_file)
 
-    with open(profile_file, "rb") as f:
-        data = tomllib.load(f)
+def load_raw_toml_file(filepath: str) -> dict:
+    with open(filepath, "rb") as f:
+        return tomllib.load(f)
 
+
+def profile_from_toml_data(data: dict) -> dict:
     app_data = data.get("app", {})
     config_data = data.get("config", {})
     honoraires_data = data.get("honoraires", {})
     notaire_data = data.get("notaire", {})
-
     merged_honoraires = default_honoraires_bareme()
     merged_honoraires.update(honoraires_data)
 
@@ -207,6 +222,107 @@ def load_profile() -> dict:
         "honoraires": merged_honoraires,
         "notaire": merged_notaire,
     }
+
+
+def load_profile() -> dict:
+    profile_file = get_profile_file()
+
+    if not os.path.exists(profile_file):
+        write_default_profile(profile_file)
+
+    ensure_default_profile_file()
+    data = load_raw_toml_file(profile_file)
+    return profile_from_toml_data(data)
+
+
+def load_default_profile() -> dict:
+    ensure_default_profile_file()
+    data = load_raw_toml_file(get_default_profile_file())
+    return profile_from_toml_data(data)
+
+
+def build_profile_editor_data(profile: dict) -> dict:
+    return {
+        "app": {
+            "agence": profile["agence"],
+            "title": profile["title"],
+        },
+        "config": {
+            "name": profile["config_name"],
+        },
+        "honoraires": {
+            "seuil_1_max": profile["honoraires"]["seuil_1_max"],
+            "seuil_2_max": profile["honoraires"]["seuil_2_max"],
+            "seuil_3_max": profile["honoraires"]["seuil_3_max"],
+            "seuil_1_forfait": profile["honoraires"]["seuil_1_forfait"],
+            "seuil_2_taux": profile["honoraires"]["seuil_2_taux"],
+            "seuil_3_taux": profile["honoraires"]["seuil_3_taux"],
+            "seuil_4_taux": profile["honoraires"]["seuil_4_taux"],
+        },
+        "notaire": {
+            "emol_seuil_1_max": profile["notaire"]["emol_seuil_1_max"],
+            "emol_taux_1": profile["notaire"]["emol_taux_1"],
+            "emol_seuil_2_max": profile["notaire"]["emol_seuil_2_max"],
+            "emol_taux_2": profile["notaire"]["emol_taux_2"],
+            "emol_seuil_3_max": profile["notaire"]["emol_seuil_3_max"],
+            "emol_taux_3": profile["notaire"]["emol_taux_3"],
+            "emol_taux_4": profile["notaire"]["emol_taux_4"],
+            "formalites_fixes": profile["notaire"]["formalites_fixes"],
+            "debours_fixes": profile["notaire"]["debours_fixes"],
+            "droits_taux": profile["notaire"]["droits_taux"],
+            "securite_taux": profile["notaire"]["securite_taux"],
+            "tva_taux": profile["notaire"]["tva_taux"],
+            "mobilier_plafond_taux": profile["notaire"]["mobilier_plafond_taux"],
+        },
+    }
+
+def save_profile_editor_data(profile_data: dict) -> None:
+    profile_dict = {
+        "app": {
+            "agence": str(profile_data["app"]["agence"]),
+            "title": str(profile_data["app"]["title"]),
+        },
+        "config": {
+            "name": str(profile_data["config"]["name"]),
+        },
+        "honoraires": {
+            "seuil_1_max": int(profile_data["honoraires"]["seuil_1_max"]),
+            "seuil_1_forfait": int(profile_data["honoraires"]["seuil_1_forfait"]),
+            "seuil_2_max": int(profile_data["honoraires"]["seuil_2_max"]),
+            "seuil_2_taux": float(profile_data["honoraires"]["seuil_2_taux"]),
+            "seuil_3_max": int(profile_data["honoraires"]["seuil_3_max"]),
+            "seuil_3_taux": float(profile_data["honoraires"]["seuil_3_taux"]),
+            "seuil_4_taux": float(profile_data["honoraires"]["seuil_4_taux"]),
+        },
+        "notaire": {
+            "emol_seuil_1_max": int(profile_data["notaire"]["emol_seuil_1_max"]),
+            "emol_taux_1": float(profile_data["notaire"]["emol_taux_1"]),
+            "emol_seuil_2_max": int(profile_data["notaire"]["emol_seuil_2_max"]),
+            "emol_taux_2": float(profile_data["notaire"]["emol_taux_2"]),
+            "emol_seuil_3_max": int(profile_data["notaire"]["emol_seuil_3_max"]),
+            "emol_taux_3": float(profile_data["notaire"]["emol_taux_3"]),
+            "emol_taux_4": float(profile_data["notaire"]["emol_taux_4"]),
+            "formalites_fixes": int(profile_data["notaire"]["formalites_fixes"]),
+            "debours_fixes": int(profile_data["notaire"]["debours_fixes"]),
+            "droits_taux": float(profile_data["notaire"]["droits_taux"]),
+            "securite_taux": float(profile_data["notaire"]["securite_taux"]),
+            "tva_taux": float(profile_data["notaire"]["tva_taux"]),
+            "mobilier_plafond_taux": float(profile_data["notaire"]["mobilier_plafond_taux"]),
+        },
+    }
+
+    with open(get_profile_file(), "w", encoding="utf-8") as f:
+        toml.dump(profile_dict, f)
+
+
+def apply_profile_to_session(profile: dict) -> None:
+    st.session_state.app_agence = profile["agence"]
+    st.session_state.app_title = profile["title"]
+    st.session_state.app_display_title = profile["display_title"]
+    st.session_state.init_file = profile["config_name"]
+    st.session_state.honoraires_bareme = dict(profile["honoraires"])
+    st.session_state.notaire_params = dict(profile["notaire"])
+
 
 def ensure_session_defaults() -> None:
     cfg = default_config()
@@ -226,6 +342,7 @@ def ensure_session_defaults() -> None:
     st.session_state.setdefault("save_message", "")
     st.session_state.setdefault("upload_error", "")
     st.session_state.setdefault("show_open_dialog", False)
+    st.session_state.setdefault("show_profile_dialog", False)
     st.session_state.setdefault("pending_load_default_config", False)
 
 
@@ -850,16 +967,15 @@ def init_session_state(profile: dict) -> None:
 
         load_config_into_session(cfg)
 
-        st.session_state.app_agence = profile["agence"]
-        st.session_state.app_title = profile["title"]
-        st.session_state.app_display_title = profile["display_title"]
+        apply_profile_to_session(profile)
         st.session_state.init_file = init_file
-        st.session_state.honoraires_bareme = profile["honoraires"]
-        st.session_state.notaire_params = profile["notaire"]
+        st.session_state.profile_editor_data = build_profile_editor_data(profile)
+        st.session_state.profile_editor_defaults = build_profile_editor_data(load_default_profile())
         st.session_state.upload_error = ""
         st.session_state.save_message = ""
         st.session_state.initialized = True
         st.session_state.show_open_dialog = False
+        st.session_state.show_profile_dialog = False
         st.session_state.pending_load_default_config = False
 
         init_internal_tracking_state()
@@ -1025,6 +1141,190 @@ def show_frais_notaire_dialog() -> None:
 
     components.html(html, height=560, scrolling=False)
 
+def format_param_label(param_name: str) -> str:
+    # mapping explicite des clés → libellés métier
+    mapping = {
+    # honoraires
+    "seuil_1_max": "Seuil 1 max (en €)",
+    "seuil_2_max": "Seuil 2 max (en €)",
+    "seuil_3_max": "Seuil 3 max (en €)",
+    "seuil_1_forfait": "Seuil 1 forfait (en €)",
+    "seuil_2_taux": "Seuil 2 taux",
+    "seuil_3_taux": "Seuil 3 taux",
+    "seuil_4_taux": "Seuil 4 taux",
+
+    # notaire
+    "emol_seuil_1_max": "Émolument seuil 1 max (en €)",
+    "emol_taux_1": "Émolument taux 1",
+    "emol_seuil_2_max": "Émolument seuil 2 max (en €)",
+    "emol_taux_2": "Émolument taux 2",
+    "emol_seuil_3_max": "Émolument seuil 3 max (en €)",
+    "emol_taux_3": "Émolument taux 3",
+    "emol_taux_4": "Émolument taux 4",
+    "formalites_fixes": "Formalités fixes (en €)",
+    "debours_fixes": "Débours fixes (en €)",
+    "droits_taux": "Droits taux",
+    "securite_taux": "Sécurité taux",
+    "tva_taux": "TVA taux",
+    "mobilier_plafond_taux": "Mobilier plafond taux",
+
+    # app / config
+    "agence": "Agence",
+    "title": "Titre",
+    "name": "Nom",
+    }
+
+    if param_name in mapping:
+        return mapping[param_name]
+
+    label = param_name.replace("_", " ")
+    return label[:1].upper() + label[1:] if label else label
+
+@st.dialog("Paramètres", width="medium")
+def show_profile_dialog() -> None:
+    def is_text_param(param_name: str) -> bool:
+        return param_name in ["agence", "title", "name"]
+
+    def is_percent_param(param_name: str) -> bool:
+        return "taux" in param_name
+
+    def is_int_param(param_name: str) -> bool:
+        return (not is_text_param(param_name)) and (not is_percent_param(param_name))
+
+    editor_data = st.session_state.get(
+        "profile_editor_data",
+        build_profile_editor_data(load_profile()),
+    )
+    default_data = st.session_state.get(
+        "profile_editor_defaults",
+        build_profile_editor_data(load_default_profile()),
+    )
+    widget_rev = st.session_state.get("profile_editor_widget_rev", 0)
+
+    st.caption("Modification du fichier profile.toml utilisé par l'application.")
+
+    section_labels = {
+        "app": "Application",
+        "config": "Configuration",
+        "honoraires": "Barème honoraires",
+        "notaire": "Frais de notaire",
+    }
+
+    ordered_sections = ["app", "config", "honoraires", "notaire"]
+    tab_labels = [section_labels[name] for name in ordered_sections]
+    tabs = st.tabs(tab_labels)
+
+    for tab, section_name in zip(tabs, ordered_sections):
+        section_values = editor_data[section_name]
+
+        with tab:
+            header_cols = st.columns([1.5, 2.2, 1.0])
+            header_cols[0].markdown("**Paramètre**")
+            header_cols[1].markdown("**Valeur**")
+            header_cols[2].markdown("**Action**")
+
+            for param_name in section_values.keys():
+                row_cols = st.columns([1.5, 2.2, 1.0])
+
+                default_value = default_data[section_name][param_name]
+                current_value = editor_data[section_name][param_name]
+                widget_key = f"profile_edit::{widget_rev}::{section_name}::{param_name}"
+
+                with row_cols[0]:
+                    st.write(format_param_label(param_name))
+
+                with row_cols[1]:
+                    if is_text_param(param_name):
+                        edited_value = st.text_input(
+                            label=f"{section_name}.{param_name}",
+                            value=str(current_value),
+                            label_visibility="collapsed",
+                            key=widget_key,
+                        )
+
+                    elif is_percent_param(param_name):
+                        try:
+                            numeric_value = float(current_value)
+                        except (TypeError, ValueError):
+                            numeric_value = float(default_value)
+
+                        display_value = round(numeric_value * 100.0, 6)
+
+                        edited_display = st.number_input(
+                            label=f"{section_name}.{param_name}",
+                            value=float(display_value),
+                            step=0.000001,
+                            format="%.6f",
+                            label_visibility="collapsed",
+                            key=widget_key,
+                        )
+
+                        edited_value = round(float(edited_display) / 100.0, 12)
+
+                    else:
+                        try:
+                            numeric_value = int(round(float(current_value)))
+                        except (TypeError, ValueError):
+                            numeric_value = int(round(float(default_value)))
+
+                        edited_display = st.number_input(
+                            label=f"{section_name}.{param_name}",
+                            value=int(numeric_value),
+                            step=1,
+                            format="%d",
+                            label_visibility="collapsed",
+                            key=widget_key,
+                        )
+
+                        edited_value = int(edited_display)
+
+                    editor_data[section_name][param_name] = edited_value
+
+                with row_cols[2]:
+                    if st.button(
+                        "Par défaut",
+                        key=f"profile_default::{section_name}::{param_name}",
+                        use_container_width=True,
+                    ):
+                        editor_data[section_name][param_name] = default_value
+                        st.session_state.profile_editor_data = editor_data
+                        st.session_state.profile_editor_widget_rev = widget_rev + 1
+                        st.rerun()
+
+    st.session_state.profile_editor_data = editor_data
+
+    btn_col_1, btn_col_2, btn_col_3 = st.columns(3)
+
+    with btn_col_1:
+        if st.button("Par défaut", key="profile_defaults_all", use_container_width=True):
+            defaults = build_profile_editor_data(load_default_profile())
+            st.session_state.profile_editor_defaults = defaults
+            st.session_state.profile_editor_data = defaults
+            st.session_state.profile_editor_widget_rev = widget_rev + 1
+            st.rerun()
+
+    with btn_col_2:
+        if st.button("Appliquer", key="profile_apply", type="primary", use_container_width=True):
+            profile_data = st.session_state.profile_editor_data
+            save_profile_editor_data(profile_data)
+            applied_profile = load_profile()
+            apply_profile_to_session(applied_profile)
+            st.session_state.profile_editor_data = build_profile_editor_data(applied_profile)
+            st.session_state.profile_editor_defaults = build_profile_editor_data(load_default_profile())
+            st.session_state.profile_editor_widget_rev = widget_rev + 1
+            # st.session_state.save_message = f"Paramètres appliqués : {get_profile_file()}"
+            st.session_state.show_profile_dialog = False
+            st.rerun()
+
+    with btn_col_3:
+        if st.button("Annuler", key="profile_cancel", use_container_width=True):
+            current_profile = load_profile()
+            st.session_state.profile_editor_data = build_profile_editor_data(current_profile)
+            st.session_state.profile_editor_defaults = build_profile_editor_data(load_default_profile())
+            st.session_state.profile_editor_widget_rev = widget_rev + 1
+            st.session_state.show_profile_dialog = False
+            st.rerun()
+
 @st.dialog("Choisir une simulation")
 def open_config_dialog() -> None:
     config_files = list_config_files()
@@ -1067,13 +1367,12 @@ def open_config_dialog() -> None:
             st.session_state.show_open_dialog = False
             st.rerun()
 
-
 def sidebar_action_controls() -> None:
     config = current_config_from_session()
     safe_file_name = sanitize_filename(config["mandat"], fallback="mandat")
     config_bytes = json.dumps(config, ensure_ascii=False, indent=2).encode("utf-8")
 
-    icon_col_new, icon_col_open, icon_col_save, icon_col_download  = st.sidebar.columns(4)
+    icon_col_new, icon_col_open, icon_col_save, icon_col_download, icon_col_settings = st.sidebar.columns(5)
 
     with icon_col_new:
         st.button(
@@ -1121,6 +1420,19 @@ def sidebar_action_controls() -> None:
                 st.session_state.get("selected_config_file_dialog", ""),
             )
             st.session_state.show_open_dialog = True
+            st.rerun()
+
+    with icon_col_settings:
+        if st.button(
+            "",
+            key="btn_open_profile_dialog",
+            icon=":material/settings:",
+            width="stretch",
+            help="Paramètres",
+        ):
+            st.session_state.profile_editor_data = build_profile_editor_data(load_profile())
+            st.session_state.profile_editor_defaults = build_profile_editor_data(load_default_profile())
+            st.session_state.show_profile_dialog = True
             st.rerun()
 
 
@@ -1271,6 +1583,9 @@ def sidebar_parameter_controls() -> None:
 
 
 def main() -> None:
+    if "profile_editor_widget_rev" not in st.session_state:
+        st.session_state.profile_editor_widget_rev = 0
+
     profile = load_profile()
 
     st.set_page_config(
@@ -1291,6 +1606,9 @@ def main() -> None:
 
     if st.session_state.get("show_open_dialog", False):
         open_config_dialog()
+
+    if st.session_state.get("show_profile_dialog", False):
+        show_profile_dialog()
 
     autosave_current_config_if_changed()
 

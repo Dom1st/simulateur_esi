@@ -1,22 +1,22 @@
 [app]
 agence = ""
-title = "Estimation de vente immobilière"
+title = "Simulation de vente immobilière"
 
 [config]
 name = "configs/demo.txt"
 
 [honoraires]
 seuil_1_max = 70000
-seuil_1_forfait = 5000
 seuil_2_max = 150000
-seuil_2_taux = 0.07
 seuil_3_max = 400000
+seuil_1_forfait = 5000
+seuil_2_taux = 0.07
 seuil_3_taux = 0.06
 seuil_4_taux = 0.05
 
 [notaire]
 emol_seuil_1_max = 6500
-emol_taux_1 = 0.0387
+emol_taux_1 = 0.03870
 emol_seuil_2_max = 17000
 emol_taux_2 = 0.01596
 emol_seuil_3_max = 60000
@@ -26,5 +26,5 @@ formalites_fixes = 850
 debours_fixes = 400
 droits_taux = 0.063185
 securite_taux = 0.001
-tva_taux = 0.2
+tva_taux = 0.20
 mobilier_plafond_taux = 0.05
